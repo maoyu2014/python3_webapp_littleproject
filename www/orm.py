@@ -184,13 +184,16 @@ class Model(dict, metaclass=ModelMetaclass):
 			else:
 				raise ValueError('Invalid limit value: %s' % str(limit))
 		rs = yield from select(' '.join(sql), args)
+		# print(rs)
+		# kk = [cls(**r) for r in rs]
+		# print(kk)
 		return [cls(**r) for r in rs]
 
 	@classmethod
 	@asyncio.coroutine
 	def findNumber(cls, selectField, where=None, args=None):
 		'find number by select and where'
-		sql = ['select `%s` _num_ from `%s`' % (selectField, cls.__table__)]
+		sql = ['select %s _num_ from `%s`' % (selectField, cls.__table__)]
 		if where:
 			sql.append('where')
 			sql.append(where)
@@ -215,22 +218,22 @@ class Model(dict, metaclass=ModelMetaclass):
 		args.append(self.getValueOrDefault(self.__primary_key__))
 		rows = yield from execute(self.__insert__, args)
 		if rows!=1:
-			logging.warn('failed to insert record: affected rows: %s' % rows)
+			logging.warning('failed to insert record: affected rows: %s' % rows)
 
 	@asyncio.coroutine
-	def update(self):
+	def modify(self):
 		args = list(map(self.getValue, self.__fields__))
 		args.append(self.getValue(self.__primary_key__))
 		rows = yield from execute(self.__update__, args)
 		if rows!=1:
-			logging.warn('failed to update by primary key: affected rows: %s' % rows)
+			logging.warning('failed to update by primary key: affected rows: %s' % rows)
 
 	@asyncio.coroutine
 	def remove(self):
 		args = [self.getValue(self.__primary_key__)]
 		rows = yield from execute(self.__delete__, args)
 		if rows!=1:
-			logging.warn('failed to remove by priamry key: affected rows: %s' % rows)
+			logging.warning('failed to remove by priamry key: affected rows: %s' % rows)
 
 
 
