@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 __author__ = 'maoyu'
 
 '''
@@ -15,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader
 from www import orm
 from www.coroweb import add_routes, add_static
 from www.config import configs
+
 
 # 这个函数我直接copy的，因为我暂时没去研究jinja
 def init_jinja2(app, **kw):
@@ -48,6 +52,7 @@ def logger_factory(app, handler):
 	return logger
 
 '''
+# 这个函数的用处暂时不明
 @asyncio.coroutine
 def data_factory(app, handler):
 	@asyncio.coroutine
@@ -69,6 +74,7 @@ def response_factory(app, handler):
 	def response(request):
 		logging.info('Response handler...')
 		r = yield from handler(request)
+		# logging.info(str(r))
 		if isinstance(r, web.StreamResponse):
 			return r
 		if isinstance(r, bytes):
@@ -88,7 +94,7 @@ def response_factory(app, handler):
 				resp.content_type= 'application/json;charset=utf-8'
 				return resp
 			else:
-				resp = web.Response(body=app['__templating__'].get_template(template).render(**r).encoder('utf-8'))
+				resp = web.Response(body=app['__templating__'].get_template(template).render(**r).encode('utf-8'))
 				resp.content_type = 'text/html;charset=utf-8'
 				return resp
 		# 这个我不懂，不知道表达什么

@@ -12,8 +12,6 @@ from www.apis import APIError
 def get(path):
 	'''
 	Define decorator @get('/path')
-	:param text:
-	:return:
 	'''
 	def decorator(func):
 		@functools.wraps(func)
@@ -27,8 +25,6 @@ def get(path):
 def post(path):
 	'''
 	Define decorator @post('/path')
-	:param path:
-	:return:
 	'''
 	def decorator(func):
 		@functools.wraps(func)
@@ -41,7 +37,7 @@ def post(path):
 
 # 获得函数fn中 没有默认值 的 命名关键字 参数列表
 def get_required_kw_args(fn):
-	args=[]
+	args = []
 	params = inspect.signature(fn).parameters
 	for name, param in params.items():
 		if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:
@@ -50,10 +46,10 @@ def get_required_kw_args(fn):
 
 # 获得函数fn中所有 命名关键字 参数列表
 def get_named_kw_args(fn):
-	args=[]
+	args = []
 	params = inspect.signature(fn).parameters
 	for name, param in params.items():
-		if param.kind == inspect.Parameter.KEYWORD_ONLY :
+		if param.kind == inspect.Parameter.KEYWORD_ONLY:
 			args.append(name)
 	return tuple(args)
 
@@ -61,7 +57,7 @@ def get_named_kw_args(fn):
 def has_named_kw_args(fn):
 	params = inspect.signature(fn).parameters
 	for name, param in params.items():
-		if param.kind == inspect.Parameter.KEYWORD_ONLY :
+		if param.kind == inspect.Parameter.KEYWORD_ONLY:
 			return True
 
 # 判断函数fn中是否有 关键字参数
@@ -77,14 +73,17 @@ def has_request_arg(fn):
 	params = sig.parameters
 	found = False
 	for name, param in params.items():
-		if name=='request':
+		if name == 'request':
 			found = True
 			continue
 		# 以下这段代码真心觉得有点难懂哎！！！
-		if found and (param.kind != inspect.Parameter.VAR_KEYWORD and param.kind != inspect.Parameter.VAR_POSITIONAL and param.kind != inspect.Parameter.KEYWORD_ONLY):
+		if found and (param.kind != inspect.Parameter.VAR_POSITIONAL and param.kind != inspect.Parameter.KEYWORD_ONLY and param.kind != inspect.Parameter.VAR_KEYWORD):
 			raise ValueError('request parameter must be the last named parameter in function: %s%s' % (fn.__name__, str(sig)))
+	# 这个不能漏啊亲
+	return found
 
 class RequestHandler(object):
+
 	def __init__(self, app, fn):
 		self._app = app
 		self._func = fn
@@ -103,14 +102,15 @@ class RequestHandler(object):
 			# POST情况下
 			if request.method == 'POST':
 				if not request.content_type:
-					return web.HTTPBadRequest('Missing Content-Type')
+					return web.HTTPBadRequest('Missing Content-Type.')
 				ct = request.content_type.lower()
-				if ct.startwith('application/json'):
+				# 注意是starts不是start
+				if ct.startswith('application/json'):
 					params = yield from request.json()
 					if not isinstance(params, dict):
-						return web.HTTPBadRequest('JSON body must be object')
+						return web.HTTPBadRequest('JSON body must be object.')
 					kw = params
-				elif ct.startwith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
+				elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
 					params = yield from request.post()
 					kw = dict(**params)
 				else:
@@ -127,11 +127,11 @@ class RequestHandler(object):
 						kw[k] = v[0]
 
 		if kw is None:
-			kw = dict(**request.math_info)
+			kw = dict(**request.match_info) #注意是match，不是math
 		else:
 			# 如果没有 关键字参数 只有 有命名关键字参数
 			if not self._has_var_kw_arg and self._named_kw_args:
-				# 把所有的命名关键字参数保存到copy中
+				# 把所有的命名关键字参数保存到copy中，也就是去除掉不在命名关键字中的
 				copy = dict()
 				for name in self._named_kw_args:
 					if name in kw:
@@ -139,13 +139,12 @@ class RequestHandler(object):
 				# 删掉所有的 非命名关键字参数
 				kw = copy
 
-				# 其实，以下这段代码我真心不知道在干嘛，
-				# 所有的命名关键字不是已经都存入copy，然后copy又赋值给了kw了么
-				# 重复一下的意义何在？
-				for k,v in request.math_info.items():
-					if k in kw:
-						logging.info('Duplicate arg name in named arg and kw args: %s' % k)
-					kw[k] = v
+			# 其实，以下这段代码我真心不知道在干嘛，
+			# 重复一下的意义何在？
+			for k, v in request.match_info.items(): # 注意是match
+				if k in kw:
+					logging.warning('Duplicate arg name in named arg and kw args: %s' % k)
+				kw[k] = v
 
 		# 如果需要存下request整个对象
 		if self._has_request_arg:
@@ -166,10 +165,10 @@ class RequestHandler(object):
 
 def add_route(app, fn):
 	method = getattr(fn, '__method__', None)
-	path = getattr(fn, '__path__', None)
+	path = getattr(fn, '__route__', None)  # 之前写成了__path__，真是醉了
 	if path is None or method is None:
 		raise ValueError('@get or @post not defined in %s.' % str(fn))
-	if not asyncio.iscoroutinefuncton(fn) and not inspect.isgeneratorfunction(fn):
+	if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
 		fn = asyncio.coroutine(fn)
 	logging.info('add route %s %s => %s(%s)' % (method, path, fn.__name__, ', '.join(inspect.signature(fn).parameters.keys())))
 	app.router.add_route(method, path, RequestHandler(app, fn))
@@ -179,7 +178,7 @@ def add_routes(app, module_name):
 	if n==(-1):
 		# 动态导入模块
 		# 等效于import module_name
-		mode = __import__(module_name, globals(), locals())
+		mod = __import__(module_name, globals(), locals())
 	else:
 		name = module_name[n+1:]
 		prename = module_name[:n]
@@ -197,7 +196,7 @@ def add_routes(app, module_name):
 		fn = getattr(mod, attr)
 		if callable(fn):
 			method = getattr(fn, '__method__', None)
-			path = getattr(fn, '__path__', None)
+			path = getattr(fn, '__route__', None)  # 之前错写成__path__
 			if method and path:
 				add_route(app, fn)
 

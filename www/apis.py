@@ -4,14 +4,14 @@
 __author__ = 'maoyu'
 
 '''
-JSON API definition
+JSON API definition.
 '''
 
 import json, logging, inspect, functools
 
 class APIError(Exception):
 	'''
-	the base APIError which contains error(required), data(required) and messgae(optional).
+	the base APIError which contains error(required), data(optional) and message(optional).
 	'''
 	def __init__(self, error, data='', message=''):
 		super().__init__(message)
