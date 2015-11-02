@@ -168,7 +168,7 @@ class Model(dict, metaclass=ModelMetaclass):
 			sql.append(where)
 		if args is None:
 			args=[]
-		orderBy = kw.get('order by', None)
+		orderBy = kw.get('orderBy', None)
 		if orderBy:
 			sql.append('order by')
 			sql.append(orderBy)
