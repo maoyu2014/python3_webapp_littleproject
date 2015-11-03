@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
 __author__ = 'maoyu'
 
 'url handlers'
@@ -12,10 +13,12 @@ import re
 import time
 import asyncio
 from aiohttp import web
-from www.apis import APIValueError, APIError
+from www.apis import APIValueError, APIError, APIPermissionError
 from www.coroweb import get, post
-from www.models import User, Blog, next_id
+from www.models import User, Blog, next_id, Comment
 from www.config import configs
+
+from www import markdown2
 
 COOKIE_NAME = 'awesession'
 _COOKIE_KEY = configs.session.secret
@@ -91,6 +94,36 @@ def signout(request):
 	logging.info('user signed out.')
 	return r
 
+@get('/manage/blogs/create')
+def manage_create_blog():
+	return {
+		'__template__':'manage_blog_edit.html',
+		'id':'',
+		'action':'/api/blogs'
+	}
+
+
+def text2html(text):
+	lines = map(lambda s: '<p>%s</p>' % s.replace('&', '&amp;').replace('<','&lt').replace('>','&gt'), filter(lambda s: s.strip() != '', text.split('\n')))
+	return ''.join(lines)
+
+
+@get('/blog/{id}')
+def get_blog(id):
+	blog = yield from Blog.find(id)
+	comments = yield from Comment.findAll('blog_id=?', [id], orderBy='created_at desc')
+	for c in comments:
+		c.html_content = text2html(c.content)
+	blog.html_content = markdown2.markdown(blog.content)
+	return {
+		'__template__':'blog.html',
+		'blog':blog,
+		'commments':comments
+	}
+
+
+
+##############################################################
 
 @get('/api/users')
 def api_get_users():
@@ -155,4 +188,33 @@ def authenticate(*, email, passwd):
 	r.content_type = 'application/json'
 	r.body=json.dumps(user, ensure_ascii=False).encode('utf-8')
 	return r
+
+@get('/api/blogs/{id}')
+def api_get_blog(*, id):
+	blog = yield from Blog.find(id)
+	return blog
+
+def check_admin(request):
+	if request.__user__ is None or not request.__user__.admin:
+		raise APIPermissionError()
+
+@post('/api/blogs')
+def api_create_blog(request, *, name, summary, content):
+	check_admin(request)
+	if not name or not name.strip():
+		raise APIValueError('name', 'name cannot be empty.')
+	if not summary or not summary.strip():
+		raise APIValueError('summary', 'summary cannot be empty.')
+	if not content or not content.strip():
+		raise APIValueError('content', 'content cannot be empty.')
+	blog = Blog(
+		user_id=request.__user__.id,
+		user_name=request.__user__.name,
+		user_image = request.__user__.image,
+		name = name.strip(),
+		summary = summary.strip(),
+		content = content.strip()
+	)
+	yield from blog.save()
+	return blog
 
