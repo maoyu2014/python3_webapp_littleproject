@@ -12,6 +12,9 @@ import uuid
 from www.orm import Model, StringField, BooleanField, FloatField, TextField
 
 def next_id():
+	# %015d 一共15位长度
+	# uuid.uuid4().hex一共32位长度
+	# '%015d%s000'加起来一共15+32+3=50
 	return '%015d%s000' % (time.time(), uuid.uuid4().hex)
 
 class User(Model):

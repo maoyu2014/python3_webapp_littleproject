@@ -18,7 +18,7 @@ from jinja2 import Environment, FileSystemLoader
 from www import orm
 from www.coroweb import add_routes, add_static
 from www.config import configs
-
+from www.handlers import COOKIE_NAME, cookie2user
 
 # 这个函数我直接copy的，因为我暂时没去研究jinja
 def init_jinja2(app, **kw):
@@ -50,6 +50,24 @@ def logger_factory(app, handler):
 		logging.info('Request: %s %s' % (request.method, request.path))
 		return (yield from handler(request))
 	return logger
+
+@asyncio.coroutine
+def auth_factory(app, handler):
+	@asyncio.coroutine
+	def auth(request):
+		logging.info('check user: %s %s' % (request.method, request.path))
+		request.__user__ = None
+		cookie_str = request.cookies.get(COOKIE_NAME)
+		if cookie_str:
+			user = yield from cookie2user(cookie_str)
+			if user:
+				logging.info('set current user: %s' % user.email)
+				request.__user__ = user
+		if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
+			return web.HTTPFound('/signin')
+		return (yield from handler(request))
+	return auth
+
 
 '''
 # 这个函数的用处暂时不明
@@ -94,6 +112,7 @@ def response_factory(app, handler):
 				resp.content_type= 'application/json;charset=utf-8'
 				return resp
 			else:
+				r['__user__'] = request.__user__  #注意这句话和__base__.html中的__user__的关系
 				resp = web.Response(body=app['__templating__'].get_template(template).render(**r).encode('utf-8'))
 				resp.content_type = 'text/html;charset=utf-8'
 				return resp
@@ -141,7 +160,7 @@ def init(loop):
 
 	app = web.Application(
 		loop=loop,
-		middlewares=[logger_factory, response_factory]
+		middlewares=[logger_factory, auth_factory, response_factory]
 	)
 
 	init_jinja2(app, filters=dict(datetime=datetime_filter))
