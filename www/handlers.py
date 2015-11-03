@@ -13,7 +13,7 @@ import re
 import time
 import asyncio
 from aiohttp import web
-from www.apis import APIValueError, APIError, APIPermissionError
+from www.apis import APIValueError, APIError, APIPermissionError, Page
 from www.coroweb import get, post
 from www.models import User, Blog, next_id, Comment
 from www.config import configs
@@ -60,6 +60,26 @@ def cookie2user(cookie_str):
 		logging.exception(e)
 		return None
 
+def text2html(text):
+	lines = map(lambda s: '<p>%s</p>' % s.replace('&', '&amp;').replace('<','&lt').replace('>','&gt'), filter(lambda s: s.strip() != '', text.split('\n')))
+	return ''.join(lines)
+
+def check_admin(request):
+	if request.__user__ is None or not request.__user__.admin:
+		raise APIPermissionError()
+
+def get_page_index(page_str):
+	p = 1
+	try:
+		p = int(page_str)
+	except ValueError as e:
+		pass
+	if p<1:
+		p=1
+	return p
+
+
+#######################      GET      ###########################
 
 @get('/')
 def index(request):
@@ -94,20 +114,6 @@ def signout(request):
 	logging.info('user signed out.')
 	return r
 
-@get('/manage/blogs/create')
-def manage_create_blog():
-	return {
-		'__template__':'manage_blog_edit.html',
-		'id':'',
-		'action':'/api/blogs'
-	}
-
-
-def text2html(text):
-	lines = map(lambda s: '<p>%s</p>' % s.replace('&', '&amp;').replace('<','&lt').replace('>','&gt'), filter(lambda s: s.strip() != '', text.split('\n')))
-	return ''.join(lines)
-
-
 @get('/blog/{id}')
 def get_blog(id):
 	blog = yield from Blog.find(id)
@@ -121,9 +127,25 @@ def get_blog(id):
 		'commments':comments
 	}
 
+####################      Manage     #################################
+
+@get('/manage/blogs')
+def manage_blogs(*, page='1'):
+	return {
+		'__template__':'manage_blogs.html',
+		'page_index':get_page_index(page)
+	}
+
+@get('/manage/blogs/create')
+def manage_create_blog():
+	return {
+		'__template__':'manage_blog_edit.html',
+		'id':'',
+		'action':'/api/blogs'
+	}
 
 
-##############################################################
+########################        API    ######################################
 
 @get('/api/users')
 def api_get_users():
@@ -189,14 +211,22 @@ def authenticate(*, email, passwd):
 	r.body=json.dumps(user, ensure_ascii=False).encode('utf-8')
 	return r
 
+
 @get('/api/blogs/{id}')
 def api_get_blog(*, id):
 	blog = yield from Blog.find(id)
 	return blog
 
-def check_admin(request):
-	if request.__user__ is None or not request.__user__.admin:
-		raise APIPermissionError()
+@get('/api/blogs')
+def api_blogs(*, page='1'):
+	page_index = get_page_index(page)
+	num = yield from Blog.findNumber('count(id)')
+	p = Page(num, page_index)
+	if num==0:
+		return dict(page=p, blogs=())
+	blogs = yield from Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+	return dict(page=p, blogs=blogs)
+
 
 @post('/api/blogs')
 def api_create_blog(request, *, name, summary, content):
