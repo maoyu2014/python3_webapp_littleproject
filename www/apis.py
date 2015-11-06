@@ -24,7 +24,9 @@ class Page(object):
 			self.offset = self.page_size * (page_index -1)
 			self.limit = self.page_size
 		self.has_next  = self.page_index < self.page_count
-		self.hax_previous = self.page_index > 1
+		# 之前把has打错成hax，结果页面上的向前翻页就不起作用了，真是细节啊
+		# 感觉python很容易打错方法，因为都是动态绑定的，很灵活，也很容易出错。
+		self.has_previous = self.page_index > 1
 
 
 

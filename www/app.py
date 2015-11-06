@@ -69,7 +69,6 @@ def auth_factory(app, handler):
 	return auth
 
 
-'''
 # 这个函数的用处暂时不明
 @asyncio.coroutine
 def data_factory(app, handler):
@@ -84,7 +83,7 @@ def data_factory(app, handler):
 				logging.info('request form: %s' % str(request.__data__))
 		return (yield from handler(request))
 	return parse_data
-'''
+
 
 @asyncio.coroutine
 def response_factory(app, handler):
