@@ -5,9 +5,9 @@
 这是用python3做的第一个小项目，根据liaoxuefeng的网站教程而来。
 
 ### 使用到的第三方库
-aiomysql
-aiohttp
-jinja2
+aiomysql  
+aiohttp  
+jinja2  
 
 ### 项目内的文件结构关系
 1. orm.py -> models.py，
